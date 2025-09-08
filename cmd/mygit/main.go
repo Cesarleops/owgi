@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bytes"
+	"compress/zlib"
 	"fmt"
+	"io"
 	"os"
+	"slices"
 )
 
 // Usage: your_program.sh <command> <arg1> <arg2> ...
@@ -29,6 +33,28 @@ func main() {
 		}
 
 		fmt.Println("Initialized git directory")
+	case "cat-file":
+		param := os.Args[3]
+		file, err := os.ReadFile(".git/objects/" + param[0:2] + "/" + param[2:])
+		if err != nil {
+			fmt.Println("dumb")
+			return
+		}
+		byteReader := bytes.NewReader(file)
+		zlibReader, err := zlib.NewReader(byteReader)
+		if err != nil {
+			fmt.Printf("Error: Failed to create zlib reader. The object might be corrupt. %v\n", err)
+			os.Exit(1)
+		}
+		defer zlibReader.Close()
+		decompressedData, err := io.ReadAll(zlibReader)
+		if err != nil {
+			fmt.Printf("Error: Failed during decompression. %v\n", err)
+			os.Exit(1)
+		}
+		i := slices.Index(decompressedData, '\x00')
+		content := decompressedData[i+1:]
+		fmt.Printf("%s", string(content))
 
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command %s\n", command)
